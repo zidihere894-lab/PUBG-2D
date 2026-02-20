@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BATTLE ROYALE • 120FPS</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
+    
+    <!-- Socket.io for real-time (optional) -->
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="screen active">
+            <div class="loader"></div>
+            <h2>BATTLE ROYALE</h2>
+            <p id="connection-status">Initializing Firebase...</p>
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+        </div>
+        
+        <!-- Auth Screen (Login/Register) -->
+        <div id="auth-screen" class="screen">
+            <div class="auth-box">
+                <div class="auth-tabs">
+                    <button class="auth-tab active" data-tab="login">LOGIN</button>
+                    <button class="auth-tab" data-tab="register">REGISTER</button>
+                </div>
+                
+                <!-- Login Form -->
+                <div id="login-form" class="auth-form active">
+                    <h2>WELCOME BACK</h2>
+                    <div class="input-group">
+                        <input type="email" id="login-email" placeholder="Email" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <input type="password" id="login-password" placeholder="Password">
+                    </div>
+                    <button id="login-btn" class="btn-primary">LOGIN</button>
+                    <div class="auth-divider">OR</div>
+                    <button id="google-login-btn" class="btn-google">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+                        Continue with Google
+                    </button>
+                </div>
+                
+                <!-- Register Form -->
+                <div id="register-form" class="auth-form">
+                    <h2>CREATE ACCOUNT</h2>
+                    <div class="input-group">
+                        <input type="text" id="register-username" placeholder="Username">
+                    </div>
+                    <div class="input-group">
+                        <input type="email" id="register-email" placeholder="Email">
+                    </div>
+                    <div class="input-group">
+                        <input type="password" id="register-password" placeholder="Password">
+                    </div>
+                    <div class="input-group">
+                        <input type="password" id="register-confirm" placeholder="Confirm Password">
+                    </div>
+                    <button id="register-btn" class="btn-primary">REGISTER</button>
+                </div>
+                
+                <div id="auth-error" class="auth-error"></div>
+            </div>
+        </div>
+        
+        <!-- Main Menu -->
+        <div id="menu-screen" class="screen">
+            <div class="menu-header">
+                <h1>BATTLE ROYALE</h1>
+                <div class="user-info">
+                    <img id="user-avatar" src="https://via.placeholder.com/40" alt="Avatar">
+                    <span id="user-name">Player</span>
+                    <span id="user-level">LVL 1</span>
+                </div>
+            </div>
+            
+            <div class="menu-buttons">
+                <button id="play-btn" class="menu-btn primary">PLAY</button>
+                <button id="lobby-btn" class="menu-btn">LOBBIES</button>
+                <button id="friends-btn" class="menu-btn">FRIENDS</button>
+                <button id="stats-btn" class="menu-btn">STATS</button>
+                <button id="settings-btn" class="menu-btn">SETTINGS</button>
+                <button id="logout-btn" class="menu-btn logout">LOGOUT</button>
+            </div>
+            
+            <div class="menu-stats">
+                <div class="stat-item">
+                    <span class="stat-label">WINS</span>
+                    <span id="stat-wins" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">KILLS</span>
+                    <span id="stat-kills" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">GAMES</span>
+                    <span id="stat-games" class="stat-value">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Lobby Browser -->
+        <div id="lobby-browser-screen" class="screen">
+            <div class="browser-header">
+                <button id="back-to-menu" class="back-btn">←</button>
+                <h2>GAME LOBBIES</h2>
+                <button id="create-lobby-btn" class="create-btn">+ CREATE</button>
+            </div>
+            
+            <div class="lobby-filters">
+                <input type="text" id="lobby-search" placeholder="Search lobbies...">
+                <select id="lobby-filter">
+                    <option value="all">All Players</option>
+                    <option value="2">2 Players</option>
+                    <option value="4">4 Players</option>
+                </select>
+            </div>
+            
+            <div id="lobbies-list" class="lobbies-list">
+                <!-- Lobbies will be populated here -->
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
+        
+        <!-- Create Lobby -->
+        <div id="create-lobby-screen" class="screen">
+            <div class="create-header">
+                <button id="back-to-browser" class="back-btn">←</button>
+                <h2>CREATE LOBBY</h2>
+            </div>
+            
+            <div class="create-form">
+                <div class="form-group">
+                    <label>Lobby Name</label>
+                    <input type="text" id="lobby-name" value="Battle Royale" maxlength="30">
+                </div>
+                
+                <div class="form-group">
+                    <label>Map</label>
+                    <select id="map-select">
+                        <option value="erangel">Erangel</option>
+                        <option value="miramar">Miramar</option>
+                        <option value="sanhok">Sanhok</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Max Players</label>
+                    <select id="max-players">
+                        <option value="2">2 Players</option>
+                        <option value="4" selected>4 Players</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Game Mode</label>
+                    <select id="game-mode">
+                        <option value="solo">Solo</option>
+                        <option value="duo">Duo</option>
+                        <option value="squad">Squad</option>
+                    </select>
+                </div>
+                
+                <div class="form-group checkbox">
+                    <input type="checkbox" id="private-lobby">
+                    <label>Private Lobby (Friends Only)</label>
+                </div>
+                
+                <button id="confirm-create-lobby" class="btn-primary">CREATE LOBBY</button>
+            </div>
+        </div>
+        
+        <!-- Lobby Room -->
+        <div id="lobby-room-screen" class="screen">
+            <div class="room-header">
+                <div>
+                    <h3 id="room-name">Lobby Name</h3>
+                    <div class="room-code">
+                        Code: <span id="room-code">ABC123</span>
+                        <button id="copy-code" class="copy-btn">📋</button>
+                    </div>
+                </div>
+                <button id="leave-lobby" class="leave-btn">LEAVE</button>
+            </div>
+            
+            <div class="room-players" id="room-players">
+                <!-- Players will be shown here -->
+            </div>
+            
+            <div class="room-settings">
+                <div class="settings-group">
+                    <label>Map: <span id="room-map">Erangel</span></label>
+                    <label>Mode: <span id="room-mode">Squad</span></label>
+                </div>
+                
+                <div class="player-status">
+                    <span id="ready-count">0/4</span> Players Ready
+                </div>
+                
+                <button id="ready-button" class="ready-btn">NOT READY</button>
+                <button id="start-game-btn" class="start-btn" disabled>START GAME</button>
+            </div>
+            
+            <div class="room-chat">
+                <div class="chat-messages" id="chat-messages"></div>
+                <div class="chat-input">
+                    <input type="text" id="chat-input" placeholder="Type a message...">
+                    <button id="send-chat">SEND</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Friends Screen -->
+        <div id="friends-screen" class="screen">
+            <div class="friends-header">
+                <button id="back-to-menu-from-friends" class="back-btn">←</button>
+                <h2>FRIENDS</h2>
+                <button id="add-friend-btn" class="add-btn">+ ADD</button>
+            </div>
+            
+            <div class="friends-tabs">
+                <button class="friends-tab active" data-tab="online">ONLINE</button>
+                <button class="friends-tab" data-tab="all">ALL</button>
+                <button class="friends-tab" data-tab="requests">REQUESTS</button>
+            </div>
+            
+            <div id="friends-list" class="friends-list">
+                <!-- Friends will be populated -->
+            </div>
+        </div>
+        
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <canvas id="game-canvas"></canvas>
+            
+            <!-- Game HUD -->
+            <div class="game-hud">
+                <!-- Top HUD -->
+                <div class="hud-top">
+                    <div class="player-count">
+                        <span>👥</span>
+                        <span id="alive-count">1</span>/<span id="total-count">4</span>
+                    </div>
+                    <div class="zone-timer">
+                        <span>⚡</span>
+                        <span id="zone-timer">3:00</span>
+                    </div>
+                    <div class="kill-counter">
+                        <span>🔫</span>
+                        <span id="kill-count">0</span>
+                    </div>
+                </div>
+                
+                <!-- Bottom HUD -->
+                <div class="hud-bottom">
+                    <!-- Health Bar -->
+                    <div class="health-container">
+                        <div class="health-bar">
+                            <div id="health-fill" class="health-fill" style="width: 100%"></div>
+                        </div>
+                        <span id="health-text">100</span>
+                    </div>
+                    
+                    <!-- Armor Bar -->
+                    <div class="armor-container">
+                        <div class="armor-bar">
+                            <div id="armor-fill" class="armor-fill" style="width: 0%"></div>
+                        </div>
+                        <span id="armor-text">0</span>
+                    </div>
+                    
+                    <!-- Weapons -->
+                    <div class="weapons-container">
+                        <div class="weapon-slot active" id="weapon-1">
+                            <span class="weapon-name">PISTOL</span>
+                            <span class="weapon-ammo" id="weapon-1-ammo">30</span>
+                        </div>
+                        <div class="weapon-slot" id="weapon-2">
+                            <span class="weapon-name">FISTS</span>
+                            <span class="weapon-ammo">∞</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Minimap -->
+                    <div class="minimap-container">
+                        <canvas id="minimap-canvas" width="100" height="100"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Kill Feed -->
+                <div id="kill-feed" class="kill-feed"></div>
+                
+                <!-- Pickup Prompt -->
+                <div id="pickup-prompt" class="pickup-prompt" style="display: none;">
+                    Press F to pickup
+                </div>
+            </div>
+            
+            <!-- Plane Drop Screen -->
+            <div id="plane-screen" class="overlay-screen" style="display: none;">
+                <div class="overlay-content">
+                    <h2>FLIGHT IN PROGRESS</h2>
+                    <div class="plane-timer" id="plane-timer">30</div>
+                    <button id="jump-btn" class="jump-btn">JUMP</button>
+                </div>
+            </div>
+            
+            <!-- Winner Screen -->
+            <div id="winner-screen" class="overlay-screen" style="display: none;">
+                <div class="winner-content">
+                    <h1>WINNER!</h1>
+                    <h2>CHICKEN DINNER</h2>
+                    <div id="winner-name">Player</div>
+                    <div class="winner-stats">
+                        <div>Kills: <span id="winner-kills">0</span></div>
+                        <div>Damage: <span id="winner-damage">0</span></div>
+                    </div>
+                    <button id="back-to-menu-from-game" class="btn-primary">BACK TO MENU</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
